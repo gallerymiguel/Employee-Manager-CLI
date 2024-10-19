@@ -1,5 +1,5 @@
 DROP DATABASE IF EXISTS department_db;
-CREATE DATABASE department_db_db;
+CREATE DATABASE department_db;
 
 \c department_db;
 
@@ -14,7 +14,7 @@ CREATE TABLE role (
     salary DECIMAL NOT NULL,
     department_id INT,
     FOREIGN KEY (department_id)
-    REFERENCES department_id(id)
+    REFERENCES department(id)
     ON DELETE SET NULL
 );
 
