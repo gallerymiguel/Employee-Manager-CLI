@@ -1,348 +1,235 @@
 // importing classes from other files
 import inquirer from "inquirer";
-import Truck from "./Truck.js";
-import Car from "./Car.js";
-import Motorbike from "./Motorbike.js";
-import Wheel from "./Wheel.js";
+import { QueryResult } from 'pg';
+import { pool, connectToDb } from './connection.js';
+import fs from 'fs';
+import path from 'path';
 
 // define the Cli class
 class Cli {
-  vehicles: (Car)[];
-  selectedVehicleVin: string | undefined;
   exit: boolean = false;
-  constructor(vehicles: (Car)[]) {
-    this.vehicles = vehicles;
+
+  async viewAllEmployees(): Promise<void> {
+    // Read the SQL query from queries.sql file
+    const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
+    const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
+
+    try {
+      const result: QueryResult = await pool.query(sql); // Execute the query
+      const employees = result.rows; // Get the rows from the result
+
+      // Check if any employees were found
+      if (employees.length === 0) {
+        console.log('No employees found.');
+      } else {
+        // Log the results in a readable format
+        console.table(employees); // Use console.table for better formatting
+      }
+    } catch (err) {
+      console.error('Error retrieving employees:', err); // Handle any errors
+    }
   }
 
-  // static method to generate a vin
-  static generateVin(): string {
-    // return a random string
-    return (
-      Math.random().toString(36).substring(2, 15) +
-      Math.random().toString(36).substring(2, 15)
-    );
-  }
+  viewAllEmployess(): void { }
 
-  // method to choose a vehicle from existing vehicles
-  chooseVehicle(): void {
-    inquirer
-      .prompt([
+  async addEmployee(): Promise<void> {
+    try {
+      // Fetch the list of managers from the database (employees who can be managers)
+      const result: QueryResult = await pool.query('SELECT employee_id, first_name, last_name FROM employee');
+      const managers = result.rows.map(row => ({
+        name: `${row.first_name} ${row.last_name}`, // Combine first and last names
+        value: row.employee_id, // Use employee_id as the value
+      }));
+      // Add a "None" option for employees without managers
+      managers.unshift({ name: 'None', value: null });
+
+      const answers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'first_name',
+          message: 'Enter employee\'s first name:',
+        },
+        {
+          type: 'input',
+          name: 'last_name',
+          message: 'Enter employee\'s last name:',
+        },
         {
           type: 'list',
-          name: 'selectedVehicleVin',
-          message: 'Select a vehicle to perform an action on',
-          choices: this.vehicles.map((vehicle) => {
-            return {
-              name: `${vehicle.vin} -- ${vehicle.make} ${vehicle.model}`,
-              value: vehicle.vin,
-            };
-          }),
+          name: 'title',
+          message: 'What is the employee\'s role?',
+          choices: ['Sales Lead', 'Salesperson', 'Lead Engineer', 'Software Engineer', 'Accountant', 'Legal Team Lead', 'Lawyer'],
         },
-      ])
-      .then((answers) => {
-        // set the selectedVehicleVin to the vin of the selected vehicle
-        this.selectedVehicleVin = answers.selectedVehicleVin;
-        // perform actions on the selected vehicle
-        this.performActions();
-      });
-  }
-
-  // method to create a vehicle
-  createVehicle(): void {
-    inquirer
-      .prompt([
         {
           type: 'list',
-          name: 'vehicleType',
-          message: 'Select a vehicle type',
-          choices: ['Car'],
+          name: 'manager_id',
+          message: 'Who is the employee\'s manager?',
+          choices: ['None', 'John Doe', 'Ashley Rodriguez', 'Malia Brown', 'Sarah Lourd', 'Tom Allen', 'Trevor Rieck'],
         },
-      ])
-      .then((answers) => {
-        if (answers.vehicleType === 'Car') {
-          // create a car
-          this.createCar();
-        }
-      });
+      ]);
+      // Add the employee to the database
+      const sql = `INSERT INTO employees (first_name, last_name, title, manager_id)
+          VALUES ($1, $2, $3, $4)`;
+      const params = [answers.first_name, answers.last_name, answers.title, answers.manager_id];
+
+      await pool.query(sql, params);
+      console.error('Error adding employee:');
+    } catch (err) {
+      console.log('Employee added successfully!');
+    }
   }
 
-  // method to create a car
-  createCar(): void {
-    inquirer
-      .prompt([
-        {
-          type: 'input',
-          name: 'color',
-          message: 'Enter Color',
-        },
-        {
-          type: 'input',
-          name: 'make',
-          message: 'Enter Make',
-        },
-        {
-          type: 'input',
-          name: 'model',
-          message: 'Enter Model',
-        },
-        {
-          type: 'input',
-          name: 'year',
-          message: 'Enter Year',
-        },
-        {
-          type: 'input',
-          name: 'weight',
-          message: 'Enter Weight',
-        },
-        {
-          type: 'input',
-          name: 'topSpeed',
-          message: 'Enter Top Speed',
-        },
-      ])
-      .then((answers) => {
-        const car = new Car(
-          Cli.generateVin(),
-          answers.color,
-          answers.make,
-          answers.model,
-          parseInt(answers.year),
-          parseInt(answers.weight),
-          parseInt(answers.topSpeed),
-          []
-        );
-        // push the car to the vehicles array
-        this.vehicles.push(car);
-        // set the selectedVehicleVin to the vin of the car
-        this.selectedVehicleVin = car.vin;
-        // perform actions on the car
-        this.performActions();
-      });
-  }
+  async updateEmployeeRole(): Promise<void> {
+    try {
+      // Step 1: Query to get all employees with their names and IDs
+      const result: QueryResult = await pool.query('SELECT employee_id, first_name, last_name FROM employee');
 
-  // method to create a truck
-  createTruck(): void {
-    inquirer
-      .prompt([
-        {
-          type: 'input',
-          name: 'color',
-          message: 'Enter Color',
-        },
-        {
-          type: 'input',
-          name: 'make',
-          message: 'Enter Make',
-        },
-        {
-          type: 'input',
-          name: 'model',
-          message: 'Enter Model',
-        },
-        {
-          type: 'input',
-          name: 'year',
-          message: 'Enter Year',
-        },
-        {
-          type: 'input',
-          name: 'weight',
-          message: 'Enter Weight',
-        },
-        {
-          type: 'input',
-          name: 'topSpeed',
-          message: 'Enter Top Speed',
-        },
-        {
-          type: 'input',
-          name: 'towingCapacity',
-          message: 'Enter Towing Capacity',
-        },
-      ])
-      .then((answers) => {
-      });
-  }
+      // Step 2: Map the employee list into a format usable by Inquirer
+      const employeeChoices = result.rows.map((employee) => ({
+        name: `${employee.first_name} ${employee.last_name}`, // Display employee full name
+        value: employee.employee_id // This will store the ID, but display the name
+      }));
+      const answers = await inquirer.prompt([
+          {
+            type: 'list',
+            name: 'employee_id',
+            message: 'Which employee\'s role would you like to update?',
+            choices: employeeChoices,
+          },
+          {
+            type: 'list',
+            name: 'title',
+            message: 'What is the employee\'s new role?',
+            choices: ['Sales Lead', 'Salesperson', 'Lead Engineer', 'Software Engineer', 'Accountant', 'Legal Team Lead', 'Lawyer'],
+          },
+        ])
+          // Update the employee's role in the database
+          const sql = `UPDATE employees
+          SET title = $1
+          WHERE employee_id = $2`;
+          const params = [answers.title, answers.employee_id];
 
-  // method to create a motorbike
-  createMotorbike(): void {
-    inquirer
-      .prompt([
-        {
-          type: 'input',
-          name: 'color',
-          message: 'Enter Color',
-        },
-        {
-          type: 'input',
-          name: 'make',
-          message: 'Enter Make',
-        },
-        {
-          type: 'input',
-          name: 'model',
-          message: 'Enter Model',
-        },
-        {
-          type: 'input',
-          name: 'year',
-          message: 'Enter Year',
-        },
-        {
-          type: 'input',
-          name: 'weight',
-          message: 'Enter Weight',
-        },
-        {
-          type: 'input',
-          name: 'topSpeed',
-          message: 'Enter Top Speed',
-        },
-        {
-          type: 'input',
-          name: 'frontWheelDiameter',
-          message: 'Enter Front Wheel Diameter',
-        },
-        {
-          type: 'input',
-          name: 'frontWheelBrand',
-          message: 'Enter Front Wheel Brand',
-        },
-        {
-          type: 'input',
-          name: 'rearWheelDiameter',
-          message: 'Enter Rear Wheel Diameter',
-        },
-        {
-          type: 'input',
-          name: 'rearWheelBrand',
-          message: 'Enter Rear Wheel Brand',
-        },
-      ])
-      .then((answers) => {
-      });
-  }
+          await pool.query(sql, params);
+              console.error('Error updating role:');
+            } catch (err) {
+              console.log('Role updated successfully!');
+            }
+    }
+   
+   async viewAllRoles(): Promise<void> {
+    // Read the SQL query from queries.sql file
+    const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
+    const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
 
-  // method to find a vehicle to tow
-  findVehicleToTow(): void {
-    inquirer
-      .prompt([
-        {
-          type: 'list',
-          name: 'vehicleToTow',
-          message: 'Select a vehicle to tow',
-          choices: this.vehicles.map((vehicle) => {
-            return {
-              name: `${vehicle.vin} -- ${vehicle.make} ${vehicle.model}`,
-              value: vehicle,
-            };
-          }),
-        },
-      ])
-      .then((answers) => {
-      });
-  }
+    try {
+      const result: QueryResult = await pool.query(sql); // Execute the query
+      const roles = result.rows; // Get the rows from the result
 
-  // method to perform actions on a vehicle
-  performActions(): void {
-    inquirer
-      .prompt([
-        {
-          type: 'list',
-          name: 'action',
-          message: 'Select an action',
-          choices: [
-            'Print details',
-            'Start vehicle',
-            'Accelerate 5 MPH',
-            'Decelerate 5 MPH',
-            'Stop vehicle',
-            'Turn right',
-            'Turn left',
-            'Reverse',
-            'Select or create another vehicle',
-            'Exit',
-          ],
-        },
-      ])
-      .then((answers) => {
-        // perform the selected action
-        if (answers.action === 'Print details') {
-          // find the selected vehicle and print its details
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].printDetails();
-            }
-          }
-        } else if (answers.action === 'Start vehicle') {
-          // find the selected vehicle and start it
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].start();
-            }
-          }
-        } else if (answers.action === 'Accelerate 5 MPH') {
-          // find the selected vehicle and accelerate it by 5 MPH
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].accelerate(5);
-            }
-          }
-        } else if (answers.action === 'Decelerate 5 MPH') {
-          // find the selected vehicle and decelerate it by 5 MPH
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].decelerate(5);
-            }
-          }
-        } else if (answers.action === 'Stop vehicle') {
-          // find the selected vehicle and stop it
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].stop();
-            }
-          }
-        } else if (answers.action === 'Turn right') {
-          // find the selected vehicle and turn it right
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].turn('right');
-            }
-          }
-        } else if (answers.action === 'Turn left') {
-          // find the selected vehicle and turn it left
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].turn('left');
-            }
-          }
-        } else if (answers.action === 'Reverse') {
-          // find the selected vehicle and reverse it
-          for (let i = 0; i < this.vehicles.length; i++) {
-            if (this.vehicles[i].vin === this.selectedVehicleVin) {
-              this.vehicles[i].reverse();
-            }
-          }
-        }
-        else if (answers.action === 'Select or create another vehicle') {
-          // start the cli to return to the initial prompt if the user wants to select or create another vehicle
-          this.startCli();
-          return;
-        } else {
-          // exit the cli if the user selects exit
-          this.exit = true;
-        }
-        if (!this.exit) {
-          // if the user does not want to exit, perform actions on the selected vehicle
-          this.performActions();
-        }
-      });
-  }
+      // Check if any roles were found
+      if (roles.length === 0) {
+        console.log('No roles found.');
+      } else {
+        // Log the results in a readable format
+        console.table(roles); // Use console.table for better formatting
+      }
+    } catch (err) {
+      console.error('Error retrieving roles:', err); // Handle any errors
+    }
+   }
+//--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+async addRole(): Promise<void> {
+  try {
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'title',
+        message: 'Enter the role title:',
+      },
+      {
+        type: 'input',
+        name: 'salary',
+        message: 'Enter the role salary:',
+      },
+      {
+        type: 'list',
+        name: 'department_id',
+        message: 'Select the department for this role:',
+        choices: ['Sales', 'Engineering', 'Finance', 'Legal'],
+      },
+    ]);
 
+    // Map the department name to the department ID
+    const departmentIdMap: { [key: string]: number } = {
+      Sales: 1,
+      Engineering: 2,
+      Finance: 3,
+      Legal: 4,
+    };
+
+    // Check if the selected department exists in the map
+    const departmentId = departmentIdMap[answers.department_id];
+    if (departmentId === undefined) {
+      throw new Error('Invalid department selected.');
+    }
+
+    // Add the role to the database
+    const sql = `INSERT INTO roles (title, salary, department_id)
+        VALUES ($1, $2, $3)`;
+    const params = [answers.title, answers.salary, departmentId];
+
+    await pool.query(sql, params);
+    console.log('Role added successfully!');
+  } catch (err) {
+    console.error('Error adding role:', err);
+  }
+}
+
+
+async viewAllDepartments(): Promise<void> {
+  // Read the SQL query from queries.sql file
+  const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
+  const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
+
+  try {
+    const result: QueryResult = await pool.query(sql); // Execute the query
+    const departments = result.rows; // Get the rows from the result
+
+    // Check if any departments were found
+    if (departments.length === 0) {
+      console.log('No departments found.');
+    } else {
+      // Log the results in a readable format
+      console.table(departments); // Use console.table for better formatting
+    }
+  } catch (err) {
+    console.error('Error retrieving departments:', err); // Handle any errors
+  }
+}
+
+async addDepartment(): Promise<void> {
+  try {
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'name',
+        message: 'Enter the department name:',
+      },
+    ]);
+
+    // Add the department to the database
+    const sql = `INSERT INTO departments (name)
+        VALUES ($1)`;
+    const params = [answers.name];
+
+    await pool.query(sql, params);
+    console.error('Error adding department:');
+  } catch (err) {
+    console.log('Department added successfully!');
+  }
+}
   // method to start the cli
   startCli(): void {
-    inquirer
+      inquirer
       .prompt([
         {
           type: 'list',
@@ -352,28 +239,28 @@ class Cli {
           choices: ['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Exit'],
         },
       ])
-      .then((answers) => {
-        // check if the user wants to create a new vehicle or select an existing vehicle
-        if (answers.CreateOrSelect === 'View All Employees') {
-          this.viewAllEmployees();
-        } if else (answers.CreateOrSelect === 'Add Employee') {
-          this.addEmployee();
-        } if else (answers.CreateOrSelect === 'Update Employee Role') {
-          this.updateEmployeeRole();
-        } if else (answers.CreateOrSelect === 'View All Roles') {
-          this.viewAllRoles();
-        } if else (answers.CreateOrSelect === 'Add Role') {
-          this.addRole();
-        } if else (answers.CreateOrSelect === 'View All Departments') {
-          this.viewAllDepartments();
-        } if else (answers.CreateOrSelect === 'Add Department') {
-          this.addDepartment();
-        } else {
-          this.exit = true;
-        }
-      });
+        .then((answers) => {
+          // check if the user wants to create a new vehicle or select an existing vehicle
+          if (answers.CreateOrSelect === 'View All Employees') {
+            this.viewAllEmployees();
+          } else if (answers.CreateOrSelect === 'Add Employee') {
+            this.addEmployee();
+          } else if (answers.CreateOrSelect === 'Update Employee Role') {
+            this.updateEmployeeRole();
+          } else if (answers.CreateOrSelect === 'View All Roles') {
+            this.viewAllRoles();
+          } else if (answers.CreateOrSelect === 'Add Role') {
+            this.addRole();
+          } else if (answers.CreateOrSelect === 'View All Departments') {
+            this.viewAllDepartments();
+          } else if (answers.CreateOrSelect === 'Add Department') {
+            this.addDepartment();
+          } else {
+            this.exit = true;
+          }
+        });
+    }
   }
-}
 
 // export the Cli class
 export default Cli;
