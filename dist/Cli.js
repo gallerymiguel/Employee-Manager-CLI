@@ -1,44 +1,58 @@
-// importing classes from other files
-import inquirer from "inquirer";
-import { pool } from './connection.js';
+import inquirer from 'inquirer';
+import { pool } from './connection.js'; // Adjust the path if necessary
 import fs from 'fs';
 import path from 'path';
-// define the Cli class
-class Cli {
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import figlet from 'figlet';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Display 'EMPLOYEE MANAGER' at startup
+figlet('EMPLOYEE MANAGER', (err, result) => {
+    if (err) {
+        console.log('Something went wrong...');
+        console.dir(err);
+        return;
+    }
+    if (result) {
+        console.log(result);
+    }
+    // Start your application by initializing the CLI class
+    const cli = new Cli();
+    cli.startCli(); // Start the CLI interaction
+});
+export class Cli {
     constructor() {
         this.exit = false;
     }
     async viewAllEmployees() {
-        // Read the SQL query from queries.sql file
-        const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
-        const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
+        const sqlFilePath = path.join(__dirname, '../db/query.sql'); // Adjust path if needed
+        const sql = await fs.promises.readFile(sqlFilePath, 'utf8'); // Read the SQL file
+        const result = await pool.query(sql); // Execute the query
         try {
-            const result = await pool.query(sql); // Execute the query
-            const employees = result.rows; // Get the rows from the result
-            // Check if any employees were found
+            const result = await pool.query(sql);
+            const employees = result.rows;
             if (employees.length === 0) {
                 console.log('No employees found.');
             }
             else {
-                // Log the results in a readable format
-                console.table(employees); // Use console.table for better formatting
+                console.table(employees);
             }
         }
         catch (err) {
-            console.error('Error retrieving employees:', err); // Handle any errors
+            console.error('Error retrieving employees:', err);
         }
     }
-    viewAllEmployess() { }
     async addEmployee() {
         try {
-            // Fetch the list of managers from the database (employees who can be managers)
+            // Fetch existing managers
             const result = await pool.query('SELECT employee_id, first_name, last_name FROM employee');
             const managers = result.rows.map(row => ({
-                name: `${row.first_name} ${row.last_name}`, // Combine first and last names
-                value: row.employee_id, // Use employee_id as the value
+                name: `${row.first_name} ${row.last_name}`,
+                value: row.employee_id,
             }));
-            // Add a "None" option for employees without managers
-            managers.unshift({ name: 'None', value: null });
+            managers.unshift({ name: 'None', value: null }); // Option for no manager
+            // Prompt for employee details
             const answers = await inquirer.prompt([
                 {
                     type: 'input',
@@ -52,84 +66,92 @@ class Cli {
                 },
                 {
                     type: 'list',
-                    name: 'title',
+                    name: 'role_id',
                     message: 'What is the employee\'s role?',
-                    choices: ['Sales Lead', 'Salesperson', 'Lead Engineer', 'Software Engineer', 'Accountant', 'Legal Team Lead', 'Lawyer'],
+                    choices: [
+                        { name: 'Sales Lead', value: 1 }, // Replace with actual role IDs
+                        { name: 'Salesperson', value: 2 },
+                        { name: 'Lead Engineer', value: 3 },
+                        { name: 'Software Engineer', value: 4 },
+                        { name: 'Accountant', value: 5 },
+                        { name: 'Legal Team Lead', value: 6 },
+                        { name: 'Lawyer', value: 7 },
+                    ],
                 },
                 {
                     type: 'list',
                     name: 'manager_id',
                     message: 'Who is the employee\'s manager?',
-                    choices: ['None', 'John Doe', 'Ashley Rodriguez', 'Malia Brown', 'Sarah Lourd', 'Tom Allen', 'Trevor Rieck'],
+                    choices: managers,
                 },
             ]);
-            // Add the employee to the database
-            const sql = `INSERT INTO employees (first_name, last_name, title, manager_id)
-          VALUES ($1, $2, $3, $4)`;
-            const params = [answers.first_name, answers.last_name, answers.title, answers.manager_id];
+            // Insert the employee into the database
+            const sql = `INSERT INTO employee (first_name, last_name, role_id, manager_id)
+                     VALUES ($1, $2, $3, $4)`;
+            const params = [answers.first_name, answers.last_name, answers.role_id, answers.manager_id];
             await pool.query(sql, params);
-            console.error('Error adding employee:');
+            console.log('Employee added successfully!');
         }
         catch (err) {
-            console.log('Employee added successfully!');
+            console.error('Error adding employee:', err);
         }
     }
     async updateEmployeeRole() {
         try {
-            // Step 1: Query to get all employees with their names and IDs
             const result = await pool.query('SELECT employee_id, first_name, last_name FROM employee');
-            // Step 2: Map the employee list into a format usable by Inquirer
-            const employeeChoices = result.rows.map((employee) => ({
-                name: `${employee.first_name} ${employee.last_name}`, // Display employee full name
-                value: employee.employee_id // This will store the ID, but display the name
+            const employeeChoices = result.rows.map(employee => ({
+                name: `${employee.first_name} ${employee.last_name}`,
+                value: employee.employee_id,
             }));
             const answers = await inquirer.prompt([
                 {
                     type: 'list',
                     name: 'employee_id',
-                    message: 'Which employee\'s role would you like to update?',
+                    message: 'Which employee role would you like to update?',
                     choices: employeeChoices,
                 },
                 {
                     type: 'list',
-                    name: 'title',
+                    name: 'role_id',
                     message: 'What is the employee\'s new role?',
-                    choices: ['Sales Lead', 'Salesperson', 'Lead Engineer', 'Software Engineer', 'Accountant', 'Legal Team Lead', 'Lawyer'],
+                    choices: [
+                        { name: 'Sales Lead', value: 1 }, // Replace with actual role IDs
+                        { name: 'Salesperson', value: 2 },
+                        { name: 'Lead Engineer', value: 3 },
+                        { name: 'Software Engineer', value: 4 },
+                        { name: 'Accountant', value: 5 },
+                        { name: 'Legal Team Lead', value: 6 },
+                        { name: 'Lawyer', value: 7 },
+                    ],
                 },
             ]);
-            // Update the employee's role in the database
-            const sql = `UPDATE employees
-          SET title = $1
-          WHERE employee_id = $2`;
-            const params = [answers.title, answers.employee_id];
+            const sql = `UPDATE employee
+        SET role_id = $1
+        WHERE employee_id = $2`;
+            const params = [answers.role_id, answers.employee_id];
             await pool.query(sql, params);
-            console.error('Error updating role:');
+            console.log('Role updated successfully!');
         }
         catch (err) {
-            console.log('Role updated successfully!');
+            console.error('Error updating role:', err);
         }
     }
     async viewAllRoles() {
-        // Read the SQL query from queries.sql file
-        const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
-        const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
+        const sql = 'SELECT title, salary FROM role'; // You can also read from queries.sql
         try {
-            const result = await pool.query(sql); // Execute the query
-            const roles = result.rows; // Get the rows from the result
-            // Check if any roles were found
+            const result = await pool.query(sql);
+            const roles = result.rows;
             if (roles.length === 0) {
                 console.log('No roles found.');
             }
             else {
-                // Log the results in a readable format
-                console.table(roles); // Use console.table for better formatting
+                console.table(roles);
             }
         }
         catch (err) {
-            console.error('Error retrieving roles:', err); // Handle any errors
+            console.error('Error retrieving roles:', err);
         }
     }
-    //--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     async addRole() {
         try {
             const answers = await inquirer.prompt([
@@ -150,21 +172,18 @@ class Cli {
                     choices: ['Sales', 'Engineering', 'Finance', 'Legal'],
                 },
             ]);
-            // Map the department name to the department ID
             const departmentIdMap = {
                 Sales: 1,
                 Engineering: 2,
                 Finance: 3,
                 Legal: 4,
             };
-            // Check if the selected department exists in the map
             const departmentId = departmentIdMap[answers.department_id];
             if (departmentId === undefined) {
                 throw new Error('Invalid department selected.');
             }
-            // Add the role to the database
-            const sql = `INSERT INTO roles (title, salary, department_id)
-        VALUES ($1, $2, $3)`;
+            const sql = `INSERT INTO role (title, salary, department_id)
+          VALUES ($1, $2, $3)`;
             const params = [answers.title, answers.salary, departmentId];
             await pool.query(sql, params);
             console.log('Role added successfully!');
@@ -174,23 +193,19 @@ class Cli {
         }
     }
     async viewAllDepartments() {
-        // Read the SQL query from queries.sql file
-        const queryFilePath = path.join(__dirname, 'queries.sql'); // Ensure this points to your queries.sql file
-        const sql = fs.readFileSync(queryFilePath, 'utf8'); // Read the SQL file
+        const sql = 'SELECT * FROM department'; // You can also read from queries.sql
         try {
-            const result = await pool.query(sql); // Execute the query
-            const departments = result.rows; // Get the rows from the result
-            // Check if any departments were found
+            const result = await pool.query(sql);
+            const departments = result.rows;
             if (departments.length === 0) {
                 console.log('No departments found.');
             }
             else {
-                // Log the results in a readable format
-                console.table(departments); // Use console.table for better formatting
+                console.table(departments);
             }
         }
         catch (err) {
-            console.error('Error retrieving departments:', err); // Handle any errors
+            console.error('Error retrieving departments:', err);
         }
     }
     async addDepartment() {
@@ -198,60 +213,69 @@ class Cli {
             const answers = await inquirer.prompt([
                 {
                     type: 'input',
-                    name: 'name',
+                    name: 'department_name',
                     message: 'Enter the department name:',
                 },
             ]);
-            // Add the department to the database
-            const sql = `INSERT INTO departments (name)
-        VALUES ($1)`;
-            const params = [answers.name];
+            const sql = `INSERT INTO department (department_name)
+          VALUES ($1)`;
+            const params = [answers.department_name];
             await pool.query(sql, params);
-            console.error('Error adding department:');
-        }
-        catch (err) {
             console.log('Department added successfully!');
         }
+        catch (err) {
+            console.error('Error adding department:', err);
+        }
     }
-    // method to start the cli
-    startCli() {
-        inquirer
-            .prompt([
-            {
-                type: 'list',
-                name: 'CreateOrSelect',
-                message: 'What would you like to do?',
-                choices: ['View All Employees', 'Add Employee', 'Update Employee Role', 'View All Roles', 'Add Role', 'View All Departments', 'Add Department', 'Exit'],
-            },
-        ])
-            .then((answers) => {
-            // check if the user wants to create a new vehicle or select an existing vehicle
-            if (answers.CreateOrSelect === 'View All Employees') {
-                this.viewAllEmployees();
+    async startCli() {
+        while (!this.exit) {
+            const answers = await inquirer.prompt([
+                {
+                    type: 'list',
+                    name: 'action',
+                    message: 'What would you like to do?',
+                    choices: [
+                        'View All Employees',
+                        'Add Employee',
+                        'Update Employee Role',
+                        'View All Roles',
+                        'Add Role',
+                        'View All Departments',
+                        'Add Department',
+                        'Exit',
+                    ],
+                },
+            ]);
+            switch (answers.action) {
+                case 'View All Employees':
+                    await this.viewAllEmployees();
+                    break;
+                case 'Add Employee':
+                    await this.addEmployee();
+                    break;
+                case 'Update Employee Role':
+                    await this.updateEmployeeRole();
+                    break;
+                case 'View All Roles':
+                    await this.viewAllRoles();
+                    break;
+                case 'Add Role':
+                    await this.addRole();
+                    break;
+                case 'View All Departments':
+                    await this.viewAllDepartments();
+                    break;
+                case 'Add Department':
+                    await this.addDepartment();
+                    break;
+                case 'Exit':
+                    this.exit = true;
+                    console.log('Exiting the application. Goodbye!');
+                    break;
             }
-            else if (answers.CreateOrSelect === 'Add Employee') {
-                this.addEmployee();
-            }
-            else if (answers.CreateOrSelect === 'Update Employee Role') {
-                this.updateEmployeeRole();
-            }
-            else if (answers.CreateOrSelect === 'View All Roles') {
-                this.viewAllRoles();
-            }
-            else if (answers.CreateOrSelect === 'Add Role') {
-                this.addRole();
-            }
-            else if (answers.CreateOrSelect === 'View All Departments') {
-                this.viewAllDepartments();
-            }
-            else if (answers.CreateOrSelect === 'Add Department') {
-                this.addDepartment();
-            }
-            else {
-                this.exit = true;
-            }
-        });
+        }
     }
 }
-// export the Cli class
-export default Cli;
+// // Create an instance and start the CLI
+// const cli = new Cli();
+// connectToDb().then(() => cli.startCli());
