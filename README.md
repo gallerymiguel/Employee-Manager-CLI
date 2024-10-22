@@ -57,7 +57,7 @@ node dist/CLI.js
 * Figlet (for the startup ASCII art)
 
 ## Video Demonstration:
-(Optional: Include a few screenshots showing the interface and interactions.)
+(https://drive.google.com/file/d/1Ko1DNHMe6W1-kVgcGs-8lO0Awr_h9lpw/view?usp=sharing)
 
 ## License
 This project is licensed under the MIT License.
