@@ -153,14 +153,14 @@ export class Cli {
       console.error('Error retrieving roles:', err);
     }
   }
-
   async addRole(): Promise<void> {
     try {
       const departmentResult: QueryResult = await pool.query('SELECT id, department_name FROM department');
       const departmentChoices = departmentResult.rows.map(department => ({
-        name: `${department.department_name}`,
-        value: department.id,
+        name: department.department_name,
+        value: department.id,  // This contains the department ID
       }));
+  
       const answers = await inquirer.prompt([
         {
           type: 'input',
@@ -179,28 +179,18 @@ export class Cli {
           choices: departmentChoices,
         },
       ]);
-
-      const departmentIdMap: { [key: string]: number } = {
-        Sales: 1,
-        Engineering: 2,
-        Finance: 3,
-        Legal: 4,
-      };
-
-      const departmentId = departmentIdMap[answers.department_id];
-      if (departmentId === undefined) {
-        throw new Error('Invalid department selected.');
-      }
-
+  
       const sql = `INSERT INTO role (title, salary, department_id)
-          VALUES ($1, $2, $3)`;
-      const params = [answers.title, answers.salary, departmentId];
+                   VALUES ($1, $2, $3)`;
+      const params = [answers.title, answers.salary, answers.department_id];
       await pool.query(sql, params);
+  
       console.log('Role added successfully!');
     } catch (err) {
       console.error('Error adding role:', err);
     }
   }
+  
 
   async viewAllDepartments(): Promise<void> {
     const sql = 'SELECT * FROM department'; // You can also read from queries.sql
