@@ -51,6 +51,11 @@ export class Cli {
                 name: `${row.first_name} ${row.last_name}`,
                 value: row.employee_id,
             }));
+            const roleResult = await pool.query('SELECT role_id, title FROM role');
+            const roleChoices = roleResult.rows.map(role => ({
+                name: `${role.title}`,
+                value: role.role_id,
+            }));
             managers.unshift({ name: 'None', value: null }); // Option for no manager
             // Prompt for employee details
             const answers = await inquirer.prompt([
@@ -68,15 +73,7 @@ export class Cli {
                     type: 'list',
                     name: 'role_id',
                     message: 'What is the employee\'s role?',
-                    choices: [
-                        { name: 'Sales Lead', value: 1 }, // Replace with actual role IDs
-                        { name: 'Salesperson', value: 2 },
-                        { name: 'Lead Engineer', value: 3 },
-                        { name: 'Software Engineer', value: 4 },
-                        { name: 'Accountant', value: 5 },
-                        { name: 'Legal Team Lead', value: 6 },
-                        { name: 'Lawyer', value: 7 },
-                    ],
+                    choices: roleChoices,
                 },
                 {
                     type: 'list',
@@ -103,6 +100,11 @@ export class Cli {
                 name: `${employee.first_name} ${employee.last_name}`,
                 value: employee.employee_id,
             }));
+            const roleResult = await pool.query('SELECT role_id, title FROM role');
+            const roleChoices = roleResult.rows.map(role => ({
+                name: `${role.title}`,
+                value: role.role_id,
+            }));
             const answers = await inquirer.prompt([
                 {
                     type: 'list',
@@ -114,15 +116,7 @@ export class Cli {
                     type: 'list',
                     name: 'role_id',
                     message: 'What is the employee\'s new role?',
-                    choices: [
-                        { name: 'Sales Lead', value: 1 }, // Replace with actual role IDs
-                        { name: 'Salesperson', value: 2 },
-                        { name: 'Lead Engineer', value: 3 },
-                        { name: 'Software Engineer', value: 4 },
-                        { name: 'Accountant', value: 5 },
-                        { name: 'Legal Team Lead', value: 6 },
-                        { name: 'Lawyer', value: 7 },
-                    ],
+                    choices: roleChoices,
                 },
             ]);
             const sql = `UPDATE employee
@@ -154,6 +148,11 @@ export class Cli {
     }
     async addRole() {
         try {
+            const departmentResult = await pool.query('SELECT id, department_name FROM department');
+            const departmentChoices = departmentResult.rows.map(department => ({
+                name: `${department.department_name}`,
+                value: department.id,
+            }));
             const answers = await inquirer.prompt([
                 {
                     type: 'input',
@@ -169,7 +168,7 @@ export class Cli {
                     type: 'list',
                     name: 'department_id',
                     message: 'Select the department for this role:',
-                    choices: ['Sales', 'Engineering', 'Finance', 'Legal'],
+                    choices: departmentChoices,
                 },
             ]);
             const departmentIdMap = {
